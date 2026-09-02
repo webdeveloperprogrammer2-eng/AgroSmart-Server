@@ -1,3 +1,4 @@
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -17,7 +18,11 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes';
 export function createApp() {
   const app = express();
 
-  // API docs (mounted before helmet so its CSP doesn't block Swagger UI assets).
+  // Web UI + API docs are mounted before helmet so its CSP doesn't block
+  // their inline scripts/styles.
+  app.use(express.static(path.join(__dirname, '..', 'public')));
+
+  // API docs.
   app.get('/docs.json', (_req, res) => res.json(openapiSpec));
   app.use(
     '/docs',

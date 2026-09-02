@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodTypeAny } from 'zod';
 import { AppError } from '../utils/AppError';
 
-/** Validates and replaces req.body using a Zod schema. */
 export const validateBody =
   (schema: ZodTypeAny) =>
   (req: Request, _res: Response, next: NextFunction): void => {

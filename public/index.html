@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Debt Tracker</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --line: #e3e6ea;
+    --text: #1c2024;
+    --muted: #6b7280;
+    --green: #12805c;
+    --red: #c2352b;
+    --accent: #2c5fd3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); margin: 0 0 12px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input {
+    width: 100%; padding: 9px 11px; margin-bottom: 12px;
+    border: 1px solid var(--line); border-radius: 7px; font: inherit; background: #fff;
+  }
+  button {
+    padding: 9px 16px; border: 0; border-radius: 7px; background: var(--accent);
+    color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  button:hover { opacity: .9; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font-size: 22px; font-weight: 650; margin-top: 3px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.empty { color: var(--muted); white-space: normal; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px;
+           background: #eef1f5; color: var(--muted); }
+  .err { color: var(--red); font-size: 14px; margin-bottom: 10px; min-height: 20px; }
+  #login { max-width: 380px; margin: 60px auto; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header hidden id="topbar">
+  <h1>Debt Tracker</h1>
+  <span id="who" class="badge"></span>
+  <button class="ghost" id="refresh">Обновить</button>
+  <button class="ghost" id="logout">Выйти</button>
+</header>
+
+<div class="wrap">
+
+  <div class="card" id="login">
+    <h2>Вход</h2>
+    <div class="err" id="loginErr"></div>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com" />
+    <label for="password">Пароль</label>
+    <input id="password" type="password" autocomplete="current-password" />
+    <button id="loginBtn">Войти</button>
+  </div>
+
+  <div id="app" hidden>
+    <div class="err" id="appErr"></div>
+
+    <div class="card">
+      <h2>Итоги</h2>
+      <div class="tiles" id="tiles"></div>
+    </div>
+
+    <div class="card">
+      <h2>Долги</h2>
+      <div class="scroll"><table id="debts"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Контакты</h2>
+      <div class="scroll"><table id="contacts"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Папки</h2>
+      <div class="scroll"><table id="folders"></table></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var TOKEN_KEY = 'debt_tracker_access_token';
+function $(id) { return document.getElementById(id); }
+
+function token() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+}
+function setToken(v) {
+  try {
+    if (v) localStorage.setItem(TOKEN_KEY, v);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch (e) { /* private mode: stay logged in for this page view only */ }
+}
+
+async function api(path) {
+  var res = await fetch('/api' + path, { headers: { Authorization: 'Bearer ' + token() } });
+  if (res.status === 401) {
+    setToken(null);
+    showLogin();
+    throw new Error('Сессия истекла — войдите заново');
+  }
+  var body = await res.json().catch(function () { return {}; });
+  if (!res.ok) throw new Error(body.error || ('Ошибка ' + res.status));
+  return body;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function money(n, cur) {
+  var v = (Number(n) || 0).toLocaleString('ru-RU', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+  return cur ? v + ' ' + cur : v;
+}
+
+function date(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '—'; }
+
+var DIRECTION = { they_owe_me: 'Мне должны', i_owe_them: 'Я должен' };
+var STATUS = { pending: 'Ожидает', partial: 'Частично', paid: 'Оплачен' };
+
+/** Render rows into a <table>. Keeps the element itself so refresh works. */
+function table(el, headers, rows, emptyText) {
+  var head = '<tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr>';
+  if (!rows.length) {
+    el.innerHTML = head + '<tr><td class="empty" colspan="' + headers.length + '">' +
+      emptyText + '</td></tr>';
+    return;
+  }
+  el.innerHTML = head + rows.map(function (cells) {
+    return '<tr>' + cells.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+  }).join('');
+}
+
+function tile(k, v, cls) {
+  return '<div class="tile"><div class="k">' + k + '</div>' +
+         '<div class="v ' + (cls || '') + '">' + v + '</div></div>';
+}
+
+async function load() {
+  $('appErr').textContent = '';
+  try {
+    var data = await Promise.all([
+      api('/users/me'),
+      api('/dashboard/summary'),
+      api('/debts'),
+      api('/contacts'),
+      api('/folders')
+    ]);
+    var me = data[0], sum = data[1], debts = data[2], contacts = data[3], folders = data[4];
+
+    $('who').textContent = me.name + ' · ' + me.email;
+
+    var net = sum.outstanding.net_balance;
+    var open = sum.counts.pending + sum.counts.partial;
+    $('tiles').innerHTML =
+      tile('Мне должны (остаток)', money(sum.outstanding.they_owe_me), 'pos') +
+      tile('Я должен (остаток)', money(sum.outstanding.i_owe_them), 'neg') +
+      tile('Баланс', money(net), net >= 0 ? 'pos' : 'neg') +
+      tile('Долгов', sum.counts.total + ' (открыто ' + open + ')') +
+      tile('Контактов', sum.contacts_count);
+
+    var contactName = {};
+    contacts.forEach(function (c) { contactName[c.id] = c.name; });
+    var folderName = {};
+    folders.forEach(function (f) { folderName[f.id] = f.name; });
+
+    table($('debts'),
+      ['Контакт', 'Направление', 'Сумма', 'Срок', 'Статус', 'Описание'],
+      debts.map(function (d) {
+        return [
+          esc(contactName[d.contact_id] || '—'),
+          DIRECTION[d.direction] || esc(d.direction),
+          money(d.amount, d.currency),
+          date(d.due_date),
+          '<span class="badge">' + (STATUS[d.status] || esc(d.status)) + '</span>',
+          esc(d.description || '—')
+        ];
+      }),
+      'Долгов пока нет.');
+
+    table($('contacts'),
+      ['Имя', 'Телефон', 'Email', 'Папка', 'Заметка'],
+      contacts.map(function (c) {
+        return [
+          esc(c.name), esc(c.phone || '—'), esc(c.email || '—'),
+          esc(folderName[c.folder_id] || '—'), esc(c.note || '—')
+        ];
+      }),
+      'Контактов пока нет.');
+
+    table($('folders'),
+      ['Название', 'Цвет', 'Создана'],
+      folders.map(function (f) {
+        return [esc(f.name), esc(f.color || '—'), date(f.created_at)];
+      }),
+      'Папок пока нет.');
+  } catch (e) {
+    $('appErr').textContent = e.message;
+  }
+}
+
+function showApp() {
+  $('login').hidden = true;
+  $('app').hidden = false;
+  $('topbar').hidden = false;
+  load();
+}
+
+function showLogin() {
+  $('login').hidden = false;
+  $('app').hidden = true;
+  $('topbar').hidden = true;
+}
+
+$('loginBtn').addEventListener('click', async function () {
+  $('loginErr').textContent = '';
+  try {
+    var res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: $('email').value.trim(),
+        password: $('password').value
+      })
+    });
+    var body = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(body.error || 'Не удалось войти');
+    setToken(body.accessToken);
+    $('password').value = '';
+    showApp();
+  } catch (e) {
+    $('loginErr').textContent = e.message;
+  }
+});
+
+$('password').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('loginBtn').click();
+});
+$('refresh').addEventListener('click', load);
+$('logout').addEventListener('click', function () { setToken(null); showLogin(); });
+
+if (token()) showApp(); else showLogin();
+</script>
+</body>
+</html>

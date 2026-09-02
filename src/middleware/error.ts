@@ -2,12 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
 import { env } from '../config/env';
 
-/** 404 handler for unmatched routes. */
 export function notFound(_req: Request, res: Response): void {
   res.status(404).json({ error: 'Route not found' });
 }
 
-/** Central error handler. Must keep all 4 args for Express to recognise it. */
 export function errorHandler(
   err: unknown,
   _req: Request,
@@ -19,7 +17,6 @@ export function errorHandler(
     return;
   }
 
-  // Postgres unique_violation
   const pgErr = err as { code?: string };
   if (pgErr.code === '23505') {
     res.status(409).json({ error: 'Resource already exists' });
