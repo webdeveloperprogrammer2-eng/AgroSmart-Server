@@ -220,3 +220,104 @@ const found = candidates.find((u) => u.password === password);
    `Authorization`.
 
 Сейчас этого нет намеренно — иначе фронтенд перестал бы работать без переделки.
+
+---
+
+## Чат: покупатель ↔ продавец (real-time)
+
+Текст, голосовые сообщения и аудиозвонок. Всё живое — через WebSocket,
+поверх того же порта 8000, отдельный сервер не нужен.
+
+```
+ws://localhost:8000/ws?userId=<id>
+```
+
+> `userId` берётся из адреса и **не проверяется** — авторизации в проекте пока
+> нет (см. раздел про пароли). Любой может представиться чужим id. Когда
+> появится JWT, проверять токен нужно в `src/realtime/socket.ts`.
+
+### REST-эндпоинты
+
+| Метод | Путь | Что делает |
+|---|---|---|
+| `GET` | `/chats?userId=3` | список чатов: `lastMessage`, `unreadCount`, `peerId` |
+| `POST` | `/chats` | открыть чат с продавцом (повторный вызов вернёт тот же) |
+| `GET` | `/chats/:id?userId=3` | один чат |
+| `GET` | `/chats/:id/messages?userId=3` | история (`_limit`, `_before`) |
+| `POST` | `/chats/:id/messages` | отправить текст или голосовое |
+| `POST` | `/chats/:id/read` | отметить прочитанным |
+| `GET` | `/chats/unread/count?userId=3` | счётчик для красной точки |
+
+Сообщение, отправленное через REST, **тоже мгновенно уходит в WebSocket**
+обоим участникам — оба способа дают одинаковый результат.
+
+### События WebSocket
+
+Клиент → сервер:
+
+```jsonc
+{ "type": "chat:send",   "chatId": 1, "kind": "text",  "text": "Салом" }
+{ "type": "chat:send",   "chatId": 1, "kind": "voice", "audio": "data:audio/webm;base64,...", "duration": 7 }
+{ "type": "chat:typing", "chatId": 1, "typing": true }
+{ "type": "chat:read",   "chatId": 1 }
+{ "type": "call:offer",  "chatId": 1, "callId": "c-1", "sdp": {...} }
+{ "type": "call:answer", "chatId": 1, "callId": "c-1", "sdp": {...} }
+{ "type": "call:ice",    "chatId": 1, "callId": "c-1", "candidate": {...} }
+{ "type": "call:end",    "chatId": 1, "callId": "c-1", "reason": "ended", "duration": 42 }
+```
+
+Сервер → клиент:
+
+```jsonc
+{ "type": "ready",        "userId": 3, "online": [3, 5] }
+{ "type": "chat:new",     "chat": {...} }
+{ "type": "chat:message", "chatId": 1, "message": {...} }
+{ "type": "chat:typing",  "chatId": 1, "userId": 5, "typing": true }
+{ "type": "chat:read",    "chatId": 1, "userId": 5, "messageIds": [7, 8] }
+{ "type": "call:incoming","chatId": 1, "callId": "c-1", "from": 3, "sdp": {...} }
+{ "type": "call:answer" | "call:ice" | "call:end", ... }
+{ "type": "presence",     "userId": 5, "online": true }
+{ "type": "error",        "error": "..." }
+```
+
+### Как это устроено
+
+**Один чат на пару + товар.** `user_a` всегда меньше `user_b`, поэтому пара
+(3,5) и (5,3) — один и тот же чат. Уникальный индекс не даёт создать дубль,
+так что фронтенд может звать `POST /chats` при каждом открытии диалога.
+
+**Голосовое** — это обычное сообщение с `kind: "voice"`, аудио лежит в
+`data.audio` как data-URL (тем же способом, что и картинки в `ImagePicker`).
+Записывается в браузере через `MediaRecorder`.
+
+**Аудиозвонок** — WebRTC. Сервер передаёт только сигналы (offer / answer /
+ICE); сам звук идёт напрямую между браузерами, минуя сервер — иначе трафик и
+задержка были бы намного хуже. Каждый звонок остаётся в истории строкой
+`kind: "call"` со статусом `ended` / `missed` / `declined`. Если собеседник
+не в сети, звонящий сразу получает `call:end` с `reason: "offline"`.
+
+**Мёртвые соединения.** Раз в 30 секунд сервер шлёт ping; кто не ответил —
+отключается. Без этого оборванный интернет оставлял бы человека «в сети» навсегда.
+
+### Пример для фронтенда
+
+```js
+const ws = new WebSocket(`ws://localhost:8000/ws?userId=${user.id}`);
+
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === "chat:message") addMessage(msg.message);
+  if (msg.type === "call:incoming") showIncomingCall(msg);
+};
+
+// текст
+ws.send(JSON.stringify({ type: "chat:send", chatId, kind: "text", text: "Салом" }));
+
+// голосовое (MediaRecorder -> blob -> data-URL)
+const reader = new FileReader();
+reader.onload = () => ws.send(JSON.stringify({
+  type: "chat:send", chatId, kind: "voice",
+  audio: reader.result, duration: seconds,
+}));
+reader.readAsDataURL(audioBlob);
+```

@@ -342,6 +342,186 @@ function buildPaths() {
     },
   };
 
+  // ── Чат ────────────────────────────────────────────────────────────────
+  const userIdQuery = {
+    name: 'userId',
+    in: 'query',
+    required: true,
+    schema: { type: 'integer' },
+    description: 'ID-и корбари ҷорӣ (авторизатсия ҳанӯз нест — README)',
+    example: 3,
+  };
+  const chatIdPath = {
+    name: 'id',
+    in: 'path',
+    required: true,
+    schema: { type: 'integer' },
+    description: 'ID-и сӯҳбат',
+  };
+
+  paths['/chats'] = {
+    get: {
+      tags: ['Chat'],
+      summary: 'Рӯйхати сӯҳбатҳои корбар',
+      description: 'Навтаринаш дар боло. Ҳар сатр `lastMessage` ва `unreadCount` дорад.',
+      parameters: [userIdQuery],
+      responses: {
+        200: {
+          description: 'Сӯҳбатҳо',
+          content: {
+            'application/json': {
+              example: [
+                {
+                  id: 1,
+                  participants: [3, 5],
+                  peerId: 5,
+                  productId: '2',
+                  productName: 'Себи Данғара',
+                  unreadCount: 2,
+                  lastMessage: {
+                    id: 9, chatId: 1, senderId: 5, kind: 'text',
+                    text: 'Салом, ҳаст?', readAt: null,
+                    createdAt: '2026-09-02T10:00:00.000Z',
+                  },
+                  createdAt: '2026-09-02T09:00:00.000Z',
+                  updatedAt: '2026-09-02T10:00:00.000Z',
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ['Chat'],
+      summary: 'Кушодани сӯҳбат бо фурӯшанда',
+      description:
+        'Агар чунин сӯҳбат аллакай бошад — ҳамонаш бармегардад (`200`), сӯҳбати нав — `201`. ' +
+        'Барои ҳар мол сӯҳбати алоҳида мешавад, агар `productId` дода шавад.',
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            example: {
+              buyerId: 3,
+              sellerId: 5,
+              productId: '2',
+              productName: 'Себи Данғара',
+              productType: 'mahsulot',
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Сӯҳбат аллакай буд' },
+        201: { description: 'Сӯҳбати нав сохта шуд' },
+        400: { description: 'buyerId ё sellerId нодуруст' },
+      },
+    },
+  };
+
+  paths['/chats/{id}'] = {
+    get: {
+      tags: ['Chat'],
+      summary: 'Як сӯҳбат',
+      parameters: [chatIdPath, userIdQuery],
+      responses: {
+        200: { description: 'Сӯҳбат' },
+        403: { description: 'Шумо иштирокчии ин сӯҳбат нестед' },
+        404: { description: 'Сӯҳбат ёфт нашуд' },
+      },
+    },
+  };
+
+  paths['/chats/{id}/messages'] = {
+    get: {
+      tags: ['Chat'],
+      summary: 'Таърихи паёмҳо',
+      description: 'Тартиб: кӯҳна → нав. Барои скролли боло `_before` -и ID-и паёми аввалро диҳед.',
+      parameters: [
+        chatIdPath,
+        userIdQuery,
+        { name: '_limit', in: 'query', required: false, schema: { type: 'integer' }, description: 'Пешфарз 50, то 200' },
+        { name: '_before', in: 'query', required: false, schema: { type: 'integer' }, description: 'Танҳо паёмҳои кӯҳнатар аз ин ID' },
+      ],
+      responses: {
+        200: {
+          description: 'Паёмҳо',
+          content: {
+            'application/json': {
+              example: [
+                { id: 1, chatId: 1, senderId: 3, kind: 'text', text: 'Салом', readAt: null, createdAt: '2026-09-02T10:00:00.000Z' },
+                { id: 2, chatId: 1, senderId: 5, kind: 'voice', audio: 'data:audio/webm;base64,...', duration: 7, mimeType: 'audio/webm', readAt: null, createdAt: '2026-09-02T10:01:00.000Z' },
+                { id: 3, chatId: 1, senderId: 3, kind: 'call', callId: 'c-17', status: 'ended', duration: 42, readAt: null, createdAt: '2026-09-02T10:05:00.000Z' },
+              ],
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ['Chat'],
+      summary: 'Фиристодани паём (матн ё овоз)',
+      description:
+        'Паём фавран бо WebSocket ба ҳар ду тараф мерасад. ' +
+        'Барои паёми овозӣ `kind: "voice"` ва `audio` ҳамчун data-URL.',
+      parameters: [chatIdPath],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            examples: {
+              matn: { summary: 'Матн', value: { userId: 3, text: 'Салом, ин ҳаст?' } },
+              ovoz: {
+                summary: 'Паёми овозӣ',
+                value: { userId: 3, kind: 'voice', audio: 'data:audio/webm;base64,GkXfo59...', duration: 7, mimeType: 'audio/webm' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        201: { description: 'Паём фиристода шуд' },
+        400: { description: 'Матн холӣ ё `audio` data-URL нест' },
+        403: { description: 'Шумо иштирокчии ин сӯҳбат нестед' },
+      },
+    },
+  };
+
+  paths['/chats/{id}/read'] = {
+    post: {
+      tags: ['Chat'],
+      summary: 'Паёмҳоро хондашуда қайд кардан',
+      description: 'Ҳамсӯҳбат фавран бо WebSocket (`chat:read`) хабар мегирад.',
+      parameters: [chatIdPath],
+      requestBody: {
+        required: true,
+        content: { 'application/json': { example: { userId: 3 } } },
+      },
+      responses: {
+        200: {
+          description: 'Қайд шуд',
+          content: { 'application/json': { example: { chatId: 1, messageIds: [7, 8], count: 2 } } },
+        },
+      },
+    },
+  };
+
+  paths['/chats/unread/count'] = {
+    get: {
+      tags: ['Chat'],
+      summary: 'Шумораи умумии паёмҳои нахонда',
+      description: 'Барои нишони сурх дар навбар.',
+      parameters: [userIdQuery],
+      responses: {
+        200: {
+          description: 'Шумора',
+          content: { 'application/json': { example: { userId: 3, unread: 4 } } },
+        },
+      },
+    },
+  };
+
   return paths;
 }
 
@@ -365,6 +545,12 @@ export const openapiSpec = {
   },
   tags: [
     ...RESOURCES.map((r) => ({ name: DOCS[r.path].tag, description: DOCS[r.path].summary })),
+    {
+      name: 'Chat',
+      description:
+        'Чат байни харидор ва фурӯшанда — матн, паёми овозӣ ва занги аудио. ' +
+        'Ҳама чиз дар вақти воқеӣ тавассути WebSocket: ws://localhost:8000/ws?userId=<id>',
+    },
     { name: 'Service', description: 'Санҷиш ва рӯйхати ресурсҳо' },
   ],
   paths: buildPaths(),
