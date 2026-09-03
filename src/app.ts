@@ -1,52 +1,58 @@
-import path from 'path';
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import morgan from 'morgan';
-import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
+import { RESOURCES } from './core/resources';
+import { createResourceRouter } from './core/resourceRouter';
+import { notFound, errorHandler } from './core/error';
+import swaggerUi from 'swagger-ui-express';
 import { openapiSpec } from './docs/openapi';
-import { notFound, errorHandler } from './middleware/error';
-
-import authRoutes from './modules/auth/auth.routes';
-import usersRoutes from './modules/users/users.routes';
-import foldersRoutes from './modules/folders/folders.routes';
-import contactsRoutes from './modules/contacts/contacts.routes';
-import debtsRoutes from './modules/debts/debts.routes';
-import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import chatRouter from './modules/chat/chat.router';
 
 export function createApp() {
   const app = express();
 
-  // Web UI + API docs are mounted before helmet so its CSP doesn't block
-  // their inline scripts/styles.
-  app.use(express.static(path.join(__dirname, '..', 'public')));
-
-  // API docs.
-  app.get('/docs.json', (_req, res) => res.json(openapiSpec));
-  app.use(
-    '/docs',
-    swaggerUi.serve,
-    swaggerUi.setup(openapiSpec, { customSiteTitle: 'Debt Tracker API Docs' })
-  );
-
-  app.use(helmet());
   app.use(
     cors({ origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',') })
   );
-  app.use(express.json());
+
+  // Суратҳо ҳамчун data-URL меоянд (components/shared/ImagePicker.jsx),
+  // барои ҳамин маҳдудияти пешфарзи 100kb кифоя нест.
+  app.use(express.json({ limit: env.JSON_LIMIT }));
+
   if (env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/users', usersRoutes);
-  app.use('/api/folders', foldersRoutes);
-  app.use('/api/contacts', contactsRoutes);
-  app.use('/api/debts', debtsRoutes);
-  app.use('/api/dashboard', dashboardRoutes);
+  // Ҳуҷҷатҳо: Swagger UI дар /docs, худи спецификация дар /docs.json
+  app.get('/docs.json', (_req, res) => res.json(openapiSpec));
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openapiSpec, {
+      customSiteTitle: 'AgroSmart API',
+      // Рӯйхати гурӯҳҳо пӯшида кушода мешавад — ҳамаи шаш ресурс якбора намоён
+      swaggerOptions: { docExpansion: 'list', defaultModelsExpandDepth: -1 },
+    })
+  );
+
+  // Рӯйхати ресурсҳо — ба монанди саҳифаи асосии json-server
+  app.get('/', (_req, res) => {
+    const base = `http://localhost:${env.PORT}`;
+    res.json(
+      Object.fromEntries(RESOURCES.map((r) => [r.path, `${base}/${r.path}`]))
+    );
+  });
+
+  for (const resource of RESOURCES) {
+    app.use(`/${resource.path}`, createResourceRouter(resource));
+  }
+
+  // Чат — мантиқи худаш дорад (иштирокчиён, дастрасӣ, паёмҳо),
+  // бинобар ин ба CRUD-и умумии json-server дохил намешавад.
+  app.use('/chats', chatRouter);
 
   app.use(notFound);
   app.use(errorHandler);

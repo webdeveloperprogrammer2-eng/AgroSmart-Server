@@ -12,16 +12,16 @@ function required(name: string): string {
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
-  PORT: parseInt(process.env.PORT ?? '4000', 10),
+
+  // Фронтенд (src/api/config.js) ба http://localhost:8000 муроҷиат мекунад.
+  PORT: parseInt(process.env.PORT ?? '8000', 10),
 
   DATABASE_URL: required('DATABASE_URL'),
   PGSSL: (process.env.PGSSL ?? 'false') === 'true',
 
-  ACCESS_TOKEN_SECRET: required('ACCESS_TOKEN_SECRET'),
-  REFRESH_TOKEN_SECRET: required('REFRESH_TOKEN_SECRET'),
-  ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL ?? '2h',
-  REFRESH_TOKEN_TTL: process.env.REFRESH_TOKEN_TTL ?? '7d',
+  // Суратҳо ҳамчун data-URL (base64) фиристода мешаванд, бинобар ин
+  // ҳаҷми ҷисми дархост калон аст.
+  JSON_LIMIT: process.env.JSON_LIMIT ?? '15mb',
 
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? '*',
-  SERVER_URL: process.env.SERVER_URL ?? '',
 };

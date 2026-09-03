@@ -1,609 +1,371 @@
-import { env } from '../config/env';
+import { RESOURCES } from '../core/resources';
 
 /**
- * OpenAPI 3.0 specification for the Debt Tracker API.
- * Kept in sync with the route definitions and Zod schemas by hand.
+ * Спецификацияи OpenAPI 3 — аз ҳамин Swagger UI дар /docs сохта мешавад.
+ *
+ * Ҳамаи шаш ресурс амалиёти якхела доранд, бинобар ин роҳҳо дар давр
+ * сохта мешаванд. Ҳангоми иловаи ресурси нав ба `src/core/resources.ts`
+ * ҳуҷҷат худаш нав мешавад — дасти касе лозим нест.
  */
-export const openapiSpec = {
-  openapi: '3.0.3',
-  info: {
-    title: 'Debt Tracker API',
-    version: '1.0.0',
-    description:
-      'Backend API for tracking debts between you and your contacts (Node.js + TypeScript + PostgreSQL).',
-    license: { name: 'MIT' },
+
+interface ResourceDoc {
+  /** Номи гурӯҳ дар Swagger */
+  tag: string;
+  /** Тавсифи гурӯҳ */
+  summary: string;
+  /** Намунаи объект — Swagger онро дар "Example Value" нишон медиҳад */
+  example: Record<string, unknown>;
+  /** Филтрҳое, ки фронтенд воқеан истифода мебарад */
+  filters?: { name: string; description: string; example: string }[];
+}
+
+const DOCS: Record<string, ResourceDoc> = {
+  users: {
+    tag: 'Users',
+    summary: 'Корбарон — сабти ном, вуруд, нақшҳо (user / admin / superadmin)',
+    example: {
+      userName: 'Ali Karimov',
+      userPhone: '+992900000003',
+      city: 'Bokhtar',
+      age: 28,
+      password: '1234',
+      role: 'user',
+    },
+    filters: [
+      {
+        name: 'userPhone',
+        description: 'Ҷустуҷӯи корбар бо рақами телефон — вуруд ва санҷиши такрор',
+        example: '+992900000003',
+      },
+    ],
   },
-  servers: env.SERVER_URL
-    ? [
-        { url: env.SERVER_URL, description: 'Production' },
-        { url: `http://localhost:${env.PORT}`, description: 'Local development' },
-      ]
-    : [{ url: `http://localhost:${env.PORT}`, description: 'Local development' }],
-  tags: [
-    { name: 'Auth', description: 'Registration, login, token refresh & logout' },
-    { name: 'Users', description: 'Current user profile' },
-    { name: 'Folders', description: 'Groups of contacts' },
-    { name: 'Contacts', description: 'People you owe / who owe you' },
-    { name: 'Debts', description: 'Debts and their payments' },
-    { name: 'Dashboard', description: 'Aggregated summary' },
-    { name: 'System', description: 'Service health' },
-  ],
-  components: {
-    securitySchemes: {
-      bearerAuth: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        description: 'Access token returned by /api/auth/login or /api/auth/register.',
-      },
+  mahsulot: {
+    tag: 'Mahsulot',
+    summary: 'Маҳсулоти бозор — саҳифаи Бозор ва кабинети деҳқон',
+    example: {
+      name: 'Себи Данғара',
+      category: 'Meva',
+      city: 'Dushanbe',
+      img: 'data:image/png;base64,...',
+      description: 'Себи тару тоза',
+      price: 12,
+      leftovers: 500,
+      userId: 3,
+      farmerName: 'Ali Karimov',
+      farmerPhone: '+992900000003',
     },
-    schemas: {
-      Error: {
-        type: 'object',
-        properties: {
-          error: { type: 'string', example: 'Invalid email or password' },
-          detail: {
-            type: 'string',
-            description: 'Only present in non-production environments for 500 errors.',
-          },
-        },
-        required: ['error'],
-      },
-      ValidationError: {
-        type: 'object',
-        properties: {
-          error: {
-            type: 'string',
-            description: 'Semicolon-separated "field: message" pairs.',
-            example: 'email: Invalid email; password: String must contain at least 6 character(s)',
-          },
-        },
-        required: ['error'],
-      },
-      User: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          name: { type: 'string', example: 'Jane Doe' },
-          email: { type: 'string', format: 'email', example: 'jane@example.com' },
-          created_at: { type: 'string', format: 'date-time' },
-        },
-      },
-      AuthResponse: {
-        type: 'object',
-        properties: {
-          user: { $ref: '#/components/schemas/User' },
-          accessToken: { type: 'string', description: 'JWT access token' },
-          refreshToken: { type: 'string', description: 'JWT refresh token' },
-        },
-      },
-      Tokens: {
-        type: 'object',
-        properties: {
-          accessToken: { type: 'string' },
-          refreshToken: { type: 'string' },
-        },
-      },
-      RegisterInput: {
-        type: 'object',
-        required: ['name', 'email', 'password'],
-        properties: {
-          name: { type: 'string', minLength: 1, maxLength: 120, example: 'Jane Doe' },
-          email: { type: 'string', format: 'email', example: 'jane@example.com' },
-          password: { type: 'string', minLength: 6, maxLength: 128, example: 'secret123' },
-        },
-      },
-      LoginInput: {
-        type: 'object',
-        required: ['email', 'password'],
-        properties: {
-          email: { type: 'string', format: 'email', example: 'jane@example.com' },
-          password: { type: 'string', minLength: 1, example: 'secret123' },
-        },
-      },
-      RefreshInput: {
-        type: 'object',
-        required: ['refreshToken'],
-        properties: {
-          refreshToken: { type: 'string', minLength: 10 },
-        },
-      },
-      Folder: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          user_id: { type: 'string', format: 'uuid' },
-          name: { type: 'string', example: 'Family' },
-          color: { type: 'string', nullable: true, example: '#ff8800' },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' },
-        },
-      },
-      FolderInput: {
-        type: 'object',
-        required: ['name'],
-        properties: {
-          name: { type: 'string', minLength: 1, maxLength: 120, example: 'Family' },
-          color: { type: 'string', maxLength: 20, example: '#ff8800' },
-        },
-      },
-      Contact: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          user_id: { type: 'string', format: 'uuid' },
-          folder_id: { type: 'string', format: 'uuid', nullable: true },
-          name: { type: 'string', example: 'John Smith' },
-          phone: { type: 'string', nullable: true, example: '+1 555 0100' },
-          email: { type: 'string', format: 'email', nullable: true },
-          note: { type: 'string', nullable: true },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' },
-        },
-      },
-      ContactInput: {
-        type: 'object',
-        required: ['name'],
-        properties: {
-          name: { type: 'string', minLength: 1, maxLength: 120, example: 'John Smith' },
-          phone: { type: 'string', maxLength: 40, example: '+1 555 0100' },
-          email: { type: 'string', format: 'email' },
-          note: { type: 'string', maxLength: 1000 },
-          folder_id: { type: 'string', format: 'uuid' },
-        },
-      },
-      Debt: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          user_id: { type: 'string', format: 'uuid' },
-          contact_id: { type: 'string', format: 'uuid' },
-          direction: { type: 'string', enum: ['they_owe_me', 'i_owe_them'] },
-          amount: { type: 'number', format: 'double', example: 150.0 },
-          currency: { type: 'string', example: 'USD' },
-          description: { type: 'string', nullable: true },
-          due_date: { type: 'string', format: 'date', nullable: true, example: '2026-07-01' },
-          status: { type: 'string', enum: ['pending', 'partial', 'paid'] },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' },
-        },
-      },
-      CreateDebtInput: {
-        type: 'object',
-        required: ['contact_id', 'direction', 'amount'],
-        properties: {
-          contact_id: { type: 'string', format: 'uuid' },
-          direction: { type: 'string', enum: ['they_owe_me', 'i_owe_them'] },
-          amount: { type: 'number', format: 'double', minimum: 0, exclusiveMinimum: true, maximum: 1000000000, example: 150.0 },
-          currency: { type: 'string', minLength: 1, maxLength: 8, default: 'USD' },
-          description: { type: 'string', maxLength: 1000 },
-          due_date: { type: 'string', format: 'date', example: '2026-07-01' },
-        },
-      },
-      UpdateDebtInput: {
-        type: 'object',
-        properties: {
-          contact_id: { type: 'string', format: 'uuid' },
-          direction: { type: 'string', enum: ['they_owe_me', 'i_owe_them'] },
-          amount: { type: 'number', format: 'double', minimum: 0, exclusiveMinimum: true, maximum: 1000000000 },
-          currency: { type: 'string', minLength: 1, maxLength: 8 },
-          description: { type: 'string', maxLength: 1000 },
-          due_date: { type: 'string', format: 'date' },
-          status: { type: 'string', enum: ['pending', 'partial', 'paid'] },
-        },
-      },
-      Payment: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          debt_id: { type: 'string', format: 'uuid' },
-          user_id: { type: 'string', format: 'uuid' },
-          amount: { type: 'number', format: 'double', example: 50.0 },
-          note: { type: 'string', nullable: true },
-          paid_at: { type: 'string', format: 'date-time' },
-          created_at: { type: 'string', format: 'date-time' },
-        },
-      },
-      CreatePaymentInput: {
-        type: 'object',
-        required: ['amount'],
-        properties: {
-          amount: { type: 'number', format: 'double', minimum: 0, exclusiveMinimum: true, maximum: 1000000000, example: 50.0 },
-          note: { type: 'string', maxLength: 500 },
-          paid_at: { type: 'string', format: 'date-time', description: 'Defaults to now if omitted.' },
-        },
-      },
-      DashboardSummary: {
-        type: 'object',
-        properties: {
-          totals: {
-            type: 'object',
-            properties: {
-              they_owe_me: { type: 'number', format: 'double' },
-              i_owe_them: { type: 'number', format: 'double' },
-            },
-          },
-          outstanding: {
-            type: 'object',
-            properties: {
-              they_owe_me: { type: 'number', format: 'double' },
-              i_owe_them: { type: 'number', format: 'double' },
-              net_balance: { type: 'number', format: 'double', description: 'Positive => net owed to you.' },
-            },
-          },
-          counts: {
-            type: 'object',
-            properties: {
-              pending: { type: 'integer' },
-              partial: { type: 'integer' },
-              paid: { type: 'integer' },
-              total: { type: 'integer' },
-            },
-          },
-          contacts_count: { type: 'integer' },
-          upcoming_due: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', format: 'uuid' },
-                amount: { type: 'number', format: 'double' },
-                currency: { type: 'string' },
-                direction: { type: 'string', enum: ['they_owe_me', 'i_owe_them'] },
-                due_date: { type: 'string', format: 'date', nullable: true },
-                status: { type: 'string', enum: ['pending', 'partial', 'paid'] },
-                contact_name: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
+    filters: [
+      { name: 'userId', description: 'Танҳо моли ҳамин корбар', example: '3' },
+      { name: 'city', description: 'Филтр аз рӯи шаҳр', example: 'Dushanbe' },
+      { name: 'category', description: 'Sabzavot | Meva | Khushmeva | Alaf', example: 'Meva' },
+    ],
+  },
+  zamin: {
+    tag: 'Zamin',
+    summary: 'Замин ба иҷора — саҳифаи Замин',
+    example: {
+      type: 'zamin',
+      name: 'Замини кишоварзӣ дар Рудакӣ',
+      city: 'Rudaki',
+      img: 'data:image/png;base64,...',
+      price: 5000,
+      leftovers: 2,
+      desc: 'Замини обёришаванда, 2 гектар',
+      userId: 3,
+      farmerName: 'Ali Karimov',
+      farmerPhone: '+992900000003',
     },
-    responses: {
-      Unauthorized: {
-        description: 'Missing or invalid access token',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
-      },
-      NotFound: {
-        description: 'Resource not found',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
-      },
-      ValidationFailed: {
-        description: 'Request body failed validation (HTTP 422)',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationError' } } },
-      },
+    filters: [
+      { name: 'userId', description: 'Танҳо замини ҳамин корбар', example: '3' },
+      { name: 'city', description: 'Филтр аз рӯи шаҳр', example: 'Rudaki' },
+    ],
+  },
+  ZaminApteka: {
+    tag: 'ZaminApteka',
+    summary: 'Дорувори ва нуриҳо — саҳифаи Дорувори',
+    example: {
+      name: 'Нуриҳои минералӣ NPK',
+      category: 'Zamin',
+      city: 'Dushanbe',
+      img: 'data:image/png;base64,...',
+      description: 'Барои ҳосилнокии беҳтар',
+      price: 150,
+      leftovers: 40,
+      userId: 3,
+      farmerName: 'Ali Karimov',
+      farmerPhone: '+992900000003',
     },
-    parameters: {
-      IdPath: {
-        name: 'id',
-        in: 'path',
-        required: true,
-        schema: { type: 'string', format: 'uuid' },
-        description: 'Resource UUID',
+    filters: [
+      { name: 'userId', description: 'Танҳо дорувории ҳамин корбар', example: '3' },
+      {
+        name: 'category',
+        description: 'Darakhtho | Sabzavot | Hayvonot | Zamin | Digar',
+        example: 'Zamin',
       },
+    ],
+  },
+  jobs: {
+    tag: 'Jobs',
+    summary: 'Дархостҳои харид — саҳифаи Муштарӣ',
+    example: {
+      companyName: 'ООО "Агроэкспорт"',
+      productName: 'Себ',
+      volume: '10 тонна',
+      description: 'Барои содирот',
+      userId: 3,
+      creatorName: 'Ali Karimov',
+      creatorPhone: '+992900000003',
+      createdAt: '2026-09-02T10:00:00.000Z',
+    },
+    filters: [{ name: 'userId', description: 'Танҳо дархости ҳамин корбар', example: '3' }],
+  },
+  notifications: {
+    tag: 'Notifications',
+    summary: 'Хабарномаи фармоиш — ҷойгузини боти Telegram',
+    example: {
+      userId: 3,
+      type: 'order',
+      buyerId: 5,
+      buyerName: 'Iso Samadov',
+      buyerPhone: '+992933347770',
+      address: 'Душанбе, кӯчаи Рӯдакӣ 10',
+      items: [{ name: 'Себи Данғара', price: 12, quantity: 2, total: 24 }],
+      total: 24,
+      createdAt: '2026-09-02T10:00:00.000Z',
+      read: false,
+    },
+    filters: [
+      { name: 'userId', description: 'Хабарномаҳои соҳиби мол', example: '3' },
+      { name: 'buyerId', description: 'Хабарномаҳои харидор', example: '5' },
+    ],
+  },
+};
+
+const ID_PARAM = {
+  name: 'id',
+  in: 'path',
+  required: true,
+  schema: { type: 'integer' },
+  description: 'ID-и сабт',
+};
+
+const SORT_PARAMS = [
+  {
+    name: '_sort',
+    in: 'query',
+    required: false,
+    schema: { type: 'string' },
+    description: 'Майдони тартиб, масалан `id` ё `createdAt`',
+  },
+  {
+    name: '_order',
+    in: 'query',
+    required: false,
+    schema: { type: 'string', enum: ['asc', 'desc'] },
+    description: 'Самти тартиб (пешфарз `asc`)',
+  },
+  {
+    name: '_limit',
+    in: 'query',
+    required: false,
+    schema: { type: 'integer' },
+    description: 'Маҳдудияти шумораи сабтҳо',
+  },
+];
+
+const NOT_FOUND = {
+  description: 'Сабт ёфт нашуд',
+  content: {
+    'application/json': {
+      schema: { type: 'object', properties: { error: { type: 'string' } } },
+      example: { error: 'Сабт ёфт нашуд' },
     },
   },
-  security: [{ bearerAuth: [] }],
-  paths: {
-    '/health': {
+};
+
+function itemSchema(doc: ResourceDoc) {
+  return {
+    type: 'object',
+    description: 'Майдонҳо озоданд (JSONB) — дар поён майдонҳои воқеии фронтенд',
+    example: { id: 1, ...doc.example },
+  };
+}
+
+function bodySchema(doc: ResourceDoc) {
+  return {
+    required: true,
+    content: {
+      'application/json': {
+        schema: { type: 'object', example: doc.example },
+      },
+    },
+  };
+}
+
+function buildPaths() {
+  const paths: Record<string, unknown> = {};
+
+  for (const resource of RESOURCES) {
+    const doc = DOCS[resource.path];
+    const tag = doc.tag;
+    const item = itemSchema(doc);
+
+    const listParams = [
+      ...(doc.filters ?? []).map((f) => ({
+        name: f.name,
+        in: 'query',
+        required: false,
+        schema: { type: 'string' },
+        description: f.description,
+        example: f.example,
+      })),
+      ...SORT_PARAMS,
+    ];
+
+    paths[`/${resource.path}`] = {
       get: {
-        tags: ['System'],
-        summary: 'Health check',
-        security: [],
+        tags: [tag],
+        summary: 'Ҳамаи сабтҳо',
+        description:
+          'Массив бармегардонад. Ҳар параметри query, ки бо `_` сар намешавад, ҳамчун филтр `майдон = қиймат` кор мекунад.',
+        parameters: listParams,
         responses: {
           200: {
-            description: 'Service is up',
+            description: 'Массиви сабтҳо',
             content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    status: { type: 'string', example: 'ok' },
-                    time: { type: 'string', format: 'date-time' },
-                  },
-                },
-              },
+              'application/json': { schema: { type: 'array', items: item } },
             },
           },
         },
       },
-    },
-    '/api/auth/register': {
       post: {
-        tags: ['Auth'],
-        summary: 'Register a new user',
-        security: [],
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterInput' } } },
-        },
+        tags: [tag],
+        summary: 'Сабти нав',
+        description: '`id` худаш дода мешавад — онро фиристодан лозим нест.',
+        requestBody: bodySchema(doc),
         responses: {
           201: {
-            description: 'User created with tokens',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthResponse' } } },
-          },
-          409: { description: 'Email already registered', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/auth/login': {
-      post: {
-        tags: ['Auth'],
-        summary: 'Log in',
-        security: [],
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginInput' } } },
-        },
-        responses: {
-          200: {
-            description: 'Authenticated with tokens',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthResponse' } } },
-          },
-          401: { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/auth/refresh': {
-      post: {
-        tags: ['Auth'],
-        summary: 'Rotate refresh token',
-        security: [],
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/RefreshInput' } } },
-        },
-        responses: {
-          200: {
-            description: 'New token pair',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/Tokens' } } },
-          },
-          401: { description: 'Invalid, expired or revoked refresh token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-        },
-      },
-    },
-    '/api/auth/logout': {
-      post: {
-        tags: ['Auth'],
-        summary: 'Revoke a refresh token',
-        security: [],
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/RefreshInput' } } },
-        },
-        responses: {
-          200: {
-            description: 'Logged out',
-            content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string', example: 'Logged out' } } } } },
+            description: 'Сабт сохта шуд',
+            content: { 'application/json': { schema: item } },
           },
         },
       },
-    },
-    '/api/users/me': {
+    };
+
+    paths[`/${resource.path}/{id}`] = {
       get: {
-        tags: ['Users'],
-        summary: 'Get current user',
+        tags: [tag],
+        summary: 'Як сабт бо ID',
+        parameters: [ID_PARAM],
         responses: {
-          200: { description: 'Current user', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
+          200: { description: 'Сабт', content: { 'application/json': { schema: item } } },
+          404: NOT_FOUND,
+        },
+      },
+      put: {
+        tags: [tag],
+        summary: 'Сабтро ПУРРА иваз мекунад',
+        description:
+          'Майдонҳои нафиристодашуда нест мешаванд. Фронтенд объекти пурраро мефиристад.',
+        parameters: [ID_PARAM],
+        requestBody: bodySchema(doc),
+        responses: {
+          200: { description: 'Иваз шуд', content: { 'application/json': { schema: item } } },
+          404: NOT_FOUND,
         },
       },
       patch: {
-        tags: ['Users'],
-        summary: 'Update current user',
+        tags: [tag],
+        summary: 'Танҳо майдонҳои фиристодашуда',
+        parameters: [ID_PARAM],
         requestBody: {
           required: true,
           content: {
             'application/json': {
-              schema: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 120 } } },
+              schema: { type: 'object' },
+              example: resource.path === 'notifications' ? { read: true } : { price: 30 },
             },
           },
         },
         responses: {
-          200: { description: 'Updated user', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/folders': {
-      get: {
-        tags: ['Folders'],
-        summary: 'List folders',
-        responses: {
-          200: { description: 'Array of folders', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Folder' } } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-        },
-      },
-      post: {
-        tags: ['Folders'],
-        summary: 'Create a folder',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/FolderInput' } } } },
-        responses: {
-          201: { description: 'Created folder', content: { 'application/json': { schema: { $ref: '#/components/schemas/Folder' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/folders/{id}': {
-      parameters: [{ $ref: '#/components/parameters/IdPath' }],
-      get: {
-        tags: ['Folders'],
-        summary: 'Get a folder',
-        responses: {
-          200: { description: 'Folder', content: { 'application/json': { schema: { $ref: '#/components/schemas/Folder' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-      patch: {
-        tags: ['Folders'],
-        summary: 'Update a folder',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/FolderInput' } } } },
-        responses: {
-          200: { description: 'Updated folder', content: { 'application/json': { schema: { $ref: '#/components/schemas/Folder' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
+          200: { description: 'Нав шуд', content: { 'application/json': { schema: item } } },
+          404: NOT_FOUND,
         },
       },
       delete: {
-        tags: ['Folders'],
-        summary: 'Delete a folder',
+        tags: [tag],
+        summary: 'Сабтро нест мекунад',
+        parameters: [ID_PARAM],
         responses: {
-          204: { description: 'Deleted' },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
+          200: {
+            description: 'Нест шуд',
+            content: { 'application/json': { schema: { type: 'object' }, example: {} } },
+          },
+          404: NOT_FOUND,
+        },
+      },
+    };
+  }
+
+  // Роҳҳои хизматӣ
+  paths['/health'] = {
+    get: {
+      tags: ['Service'],
+      summary: 'Санҷиши кор',
+      responses: {
+        200: {
+          description: 'Сервер кор мекунад',
+          content: {
+            'application/json': {
+              example: { status: 'ok', time: '2026-09-02T10:00:00.000Z' },
+            },
+          },
         },
       },
     },
-    '/api/contacts': {
-      get: {
-        tags: ['Contacts'],
-        summary: 'List contacts',
-        parameters: [
-          { name: 'folder_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' }, description: 'Filter by folder' },
-        ],
-        responses: {
-          200: { description: 'Array of contacts', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Contact' } } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-        },
-      },
-      post: {
-        tags: ['Contacts'],
-        summary: 'Create a contact',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ContactInput' } } } },
-        responses: {
-          201: { description: 'Created contact', content: { 'application/json': { schema: { $ref: '#/components/schemas/Contact' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
+  };
+
+  paths['/'] = {
+    get: {
+      tags: ['Service'],
+      summary: 'Рӯйхати ҳамаи ресурсҳо',
+      responses: {
+        200: {
+          description: 'Ресурсҳо ва суроғаҳои онҳо',
+          content: {
+            'application/json': {
+              example: { users: 'http://localhost:8000/users' },
+            },
+          },
         },
       },
     },
-    '/api/contacts/{id}': {
-      parameters: [{ $ref: '#/components/parameters/IdPath' }],
-      get: {
-        tags: ['Contacts'],
-        summary: 'Get a contact',
-        responses: {
-          200: { description: 'Contact', content: { 'application/json': { schema: { $ref: '#/components/schemas/Contact' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-      patch: {
-        tags: ['Contacts'],
-        summary: 'Update a contact',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ContactInput' } } } },
-        responses: {
-          200: { description: 'Updated contact', content: { 'application/json': { schema: { $ref: '#/components/schemas/Contact' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-      delete: {
-        tags: ['Contacts'],
-        summary: 'Delete a contact',
-        responses: {
-          204: { description: 'Deleted' },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-    },
-    '/api/debts': {
-      get: {
-        tags: ['Debts'],
-        summary: 'List debts',
-        parameters: [
-          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'partial', 'paid'] } },
-          { name: 'contact_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
-          { name: 'direction', in: 'query', required: false, schema: { type: 'string', enum: ['they_owe_me', 'i_owe_them'] } },
-        ],
-        responses: {
-          200: { description: 'Array of debts', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Debt' } } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-        },
-      },
-      post: {
-        tags: ['Debts'],
-        summary: 'Create a debt',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateDebtInput' } } } },
-        responses: {
-          201: { description: 'Created debt', content: { 'application/json': { schema: { $ref: '#/components/schemas/Debt' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/debts/{id}': {
-      parameters: [{ $ref: '#/components/parameters/IdPath' }],
-      get: {
-        tags: ['Debts'],
-        summary: 'Get a debt',
-        responses: {
-          200: { description: 'Debt', content: { 'application/json': { schema: { $ref: '#/components/schemas/Debt' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-      patch: {
-        tags: ['Debts'],
-        summary: 'Update a debt',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateDebtInput' } } } },
-        responses: {
-          200: { description: 'Updated debt', content: { 'application/json': { schema: { $ref: '#/components/schemas/Debt' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-      delete: {
-        tags: ['Debts'],
-        summary: 'Delete a debt',
-        responses: {
-          204: { description: 'Deleted' },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-    },
-    '/api/debts/{id}/payments': {
-      parameters: [{ $ref: '#/components/parameters/IdPath' }],
-      get: {
-        tags: ['Debts'],
-        summary: 'List payments for a debt',
-        responses: {
-          200: { description: 'Array of payments', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Payment' } } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-        },
-      },
-      post: {
-        tags: ['Debts'],
-        summary: 'Add a payment to a debt',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePaymentInput' } } } },
-        responses: {
-          201: { description: 'Created payment', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-          404: { $ref: '#/components/responses/NotFound' },
-          422: { $ref: '#/components/responses/ValidationFailed' },
-        },
-      },
-    },
-    '/api/dashboard/summary': {
-      get: {
-        tags: ['Dashboard'],
-        summary: 'Aggregated dashboard summary',
-        responses: {
-          200: { description: 'Summary', content: { 'application/json': { schema: { $ref: '#/components/schemas/DashboardSummary' } } } },
-          401: { $ref: '#/components/responses/Unauthorized' },
-        },
-      },
-    },
+  };
+
+  return paths;
+}
+
+export const openapiSpec = {
+  openapi: '3.0.3',
+  info: {
+    title: 'AgroSmart.tj API',
+    version: '1.0.0',
+    description: [
+      'Бэкенд барои фронтенди **AgroSmart.tj** (React + Vite).',
+      '',
+      'Фронтенд зери **json-server** навишта шудааст, бинобар ин ин API',
+      'маҳз ҳамон рафторро такрор мекунад — дар фронтенд ҳеҷ чиз иваз кардан лозим нест.',
+      'Ҳар шаш ресурс як хел кор мекунад: `getAll`, `getById`, `create`, `update` (PUT),',
+      '`patch`, `remove` — ҳамон тавре ки дар `src/api/httpClient.js` навишта шудааст.',
+      '',
+      '⚠️ **Огоҳӣ:** паролҳо дар `/users` кушода нигоҳ дошта мешаванд, чунки',
+      '`context/UserContext.jsx` онҳоро дар браузер муқоиса мекунад.',
+      'Тафсилот ва роҳи ислоҳ — дар `README.md`.',
+    ].join('\n'),
   },
-} as const;
+  tags: [
+    ...RESOURCES.map((r) => ({ name: DOCS[r.path].tag, description: DOCS[r.path].summary })),
+    { name: 'Service', description: 'Санҷиш ва рӯйхати ресурсҳо' },
+  ],
+  paths: buildPaths(),
+};

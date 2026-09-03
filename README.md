@@ -1,243 +1,222 @@
-# Debt Tracker API
+# AgroSmart.tj — Backend API
 
-A REST API backend for tracking debts — who owes you, who you owe, organized by
-contacts and folders, with partial payments and a dashboard summary.
+Бэкенд для фронтенда [AgroSmart.tj](https://github.com/webdeveloperprogrammer2-eng/AgroSmart.tj)
+(React + Vite). Node.js + TypeScript + Express + PostgreSQL.
 
-Built with **Node.js + TypeScript + Express + PostgreSQL** (raw SQL via `pg`, no ORM).
-Auth uses **JWT access + refresh tokens** with refresh-token rotation.
+Фронтенд написан под **json-server**, поэтому этот бэкенд полностью повторяет
+его поведение — во фронтенде **не нужно менять ни строки**.
 
 ---
 
-## Features
+## Запуск
 
-- Register / login with hashed passwords (bcrypt)
-- Access token (short-lived) + refresh token (long-lived, rotated & revocable)
-- Folders to group contacts
-- Contacts (people involved in debts)
-- Debts (`they_owe_me` / `i_owe_them`), with currency, due date, and status
-- Payments against a debt — status auto-updates to `pending` / `partial` / `paid`
-- Dashboard summary: totals, outstanding balances, net balance, status counts, upcoming due
-- Input validation (Zod), security headers (helmet), CORS, request logging (morgan)
+```bash
+npm install
+psql -U postgres -c "CREATE DATABASE agrosmart;"
+npm run seed                # тестовые данные (необязательно)
+npm run dev                 # http://localhost:8000
+```
 
-## Tech stack
+Таблицы создаются сами при старте (`ensureSchema`), отдельный `npm run migrate`
+нужен только если хочется применить схему без запуска сервера.
 
-| Concern        | Choice                          |
-| -------------- | ------------------------------- |
-| Language       | TypeScript                      |
-| Web framework  | Express 4                       |
-| Database       | PostgreSQL via `pg` (raw SQL)   |
-| Auth           | JWT (access + refresh) + bcrypt |
-| Validation     | Zod                             |
-| Dev runner     | tsx                             |
+При старте видно, что именно поднялось:
 
-## Project structure
+```
+🌐 CORS: all origins allowed (CORS_ORIGIN=*)
+✅ Database connected
+✅ Schema up to date
+🚀 Server running on http://localhost:8000 (development)
+📖 API docs at http://localhost:8000/docs
+❤️  Health at http://localhost:8000/health
+
+📦 Resources (6):
+   • http://localhost:8000/users
+   ...
+```
+
+Если порт занят — вместо стека ошибок будет понятное сообщение с подсказкой
+`npx kill-port 8000`.
+
+Порт **8000** — именно его ждёт фронтенд (`src/api/config.js`, `BASE_URL`).
+
+Фронтенд запускается отдельно: `npm run dev` в его папке (порт 5173).
+
+### Скрипты
+
+| Команда | Что делает |
+|---|---|
+| `npm run dev` | dev-сервер с авто-перезапуском (tsx watch) |
+| `npm run migrate` | применяет `src/db/schema.sql` |
+| `npm run seed` | **очищает** таблицы и заливает тестовые данные |
+| `npm run build` | компиляция в `dist/` |
+| `npm start` | запуск собранного `dist/server.js` |
+
+---
+
+## Эндпоинты
+
+Шесть ресурсов, у каждого одинаковый набор операций:
+
+| Ресурс | Что хранит | Где используется во фронтенде |
+|---|---|---|
+| `/users` | пользователи | `src/api/usersApi.js`, `context/UserContext.jsx` |
+| `/mahsulot` | товары (бозор) | `src/api/mahsulotApi.js`, `pages/bozor`, `pages/profile` |
+| `/zamin` | земля в аренду | `src/api/zaminApi.js`, `pages/zamin` |
+| `/ZaminApteka` | агроаптека | `src/api/aptekaApi.js`, `pages/doruvori` |
+| `/jobs` | заявки (муштарӣ) | `src/api/jobsApi.js`, `pages/mushtari` |
+| `/notifications` | уведомления о заказах | `src/api/notificationsApi.js` |
+
+> `/ZaminApteka` — с большой буквы, так его вызывает `aptekaApi.js`.
+> В Postgres таблица называется `zamin_apteka` (соответствие — в `src/core/resources.ts`).
+
+### Операции (одинаковы для всех шести)
+
+| Метод | Путь | Ответ | Метод в `httpClient.js` |
+|---|---|---|---|
+| `GET` | `/<ресурс>` | `200` массив | `getAll()` |
+| `GET` | `/<ресурс>/:id` | `200` объект / `404` | `getById(id)` |
+| `POST` | `/<ресурс>` | `201` созданный объект | `create(data)` |
+| `PUT` | `/<ресурс>/:id` | `200` объект целиком заменён | `update(id, data)` |
+| `PATCH` | `/<ресурс>/:id` | `200` изменены только присланные поля | `patch(id, data)` |
+| `DELETE` | `/<ресурс>/:id` | `200` `{}` | `remove(id)` |
+
+Плюс служебные:
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| `GET` | `/docs` | **Swagger UI** — интерактивная документация, можно слать запросы прямо из браузера |
+| `GET` | `/docs.json` | сама OpenAPI 3 спецификация |
+| `GET` | `/` | список всех ресурсов со ссылками |
+| `GET` | `/health` | `{"status":"ok","time":...}` |
+
+Спецификация собирается из `src/core/resources.ts`, поэтому новый ресурс
+появляется в Swagger автоматически — руками дописывать не нужно.
+
+### Query-параметры для `GET /<ресурс>`
+
+Фильтр по любому полю + сортировка (как в json-server):
+
+```
+GET /users?userPhone=%2B992900000003
+GET /notifications?userId=3&_sort=id&_order=desc
+GET /mahsulot?city=Dushanbe&category=Meva
+GET /jobs?_sort=createdAt&_order=desc&_limit=10
+```
+
+Поддерживаются `_sort`, `_order` (`asc`/`desc`), `_limit`. Любой другой параметр
+воспринимается как фильтр `поле = значение`.
+
+Реально фронтендом используются два запроса:
+- `GET /users?userPhone=...` — вход и проверка дубля при регистрации
+- `GET /notifications?userId=...&_sort=id&_order=desc` — уведомления пользователя
+
+Остальные страницы берут `getAll()` и фильтруют на клиенте
+(`pages/profile/api.js`: `all.filter(i => String(i.userId) === String(userId))`).
+
+---
+
+## Структура данных
+
+`id` — целое число с автоинкрементом, как у json-server. Остальные поля лежат
+в JSONB и возвращаются вперемешку с `id`: `{ id, ...все поля }`.
+
+**Почему JSONB, а не обычные колонки:** фронтенд шлёт для одного ресурса разные
+наборы полей — форма профиля (`ProductFormModal.jsx`) и админка
+(`adminSections.js`) отличаются, а старые записи хранят другие названия городов
+и категорий (см. `CITY_ALIASES` в `lib/catalog.js`). С жёсткими колонками каждое
+изменение формы требовало бы миграции.
+
+Поля, которые шлёт фронтенд:
+
+```jsonc
+// users
+{ "userName": "Ali", "userPhone": "+992...", "city": "Dushanbe",
+  "age": 28, "password": "1234", "role": "user" }   // role: user | admin | superadmin
+
+// mahsulot
+{ "name": "...", "category": "Meva", "city": "Dushanbe", "img": "data:image/...",
+  "description": "...", "price": 12, "leftovers": 500,
+  "userId": 3, "farmerName": "...", "farmerPhone": "..." }
+
+// zamin
+{ "type": "zamin", "name": "...", "city": "Rudaki", "img": "...",
+  "price": 5000, "leftovers": 2, "desc": "...",
+  "userId": 3, "farmerName": "...", "farmerPhone": "..." }
+
+// ZaminApteka
+{ "name": "...", "category": "Zamin", "city": "...", "img": "...",
+  "description": "...", "price": 150, "leftovers": 40,
+  "userId": 3, "farmerName": "...", "farmerPhone": "..." }
+
+// jobs
+{ "companyName": "...", "productName": "...", "volume": "10 тонна",
+  "description": "...", "userId": 3, "creatorName": "...",
+  "creatorPhone": "...", "createdAt": "2026-..." }
+
+// notifications
+{ "userId": 3, "type": "order", "buyerId": 5, "buyerName": "...",
+  "buyerPhone": "...", "address": "...",
+  "items": [{ "name": "...", "price": 10, "quantity": 2, "total": 20 }],
+  "total": 20, "createdAt": "2026-...", "read": false }
+```
+
+`img` — картинка целиком в base64 (`ImagePicker.jsx` → `fileToDataUrl`), поэтому
+лимит тела запроса поднят до 15 МБ (`JSON_LIMIT` в `.env`).
+
+---
+
+## Структура проекта
 
 ```
 src/
-  config/      env loading + pg pool & query helpers
-  db/          schema.sql + migration runner
-  middleware/  auth (JWT), validation (Zod), error handler
-  utils/       AppError, asyncHandler, password, jwt
-  modules/
-    auth/      register, login, refresh, logout
-    users/     current user profile
-    folders/   CRUD
-    contacts/  CRUD
-    debts/     CRUD + payments
-    dashboard/ summary aggregates
-  app.ts       express app (middleware + routes)
-  server.ts    entry point
+  config/
+    env.ts              переменные окружения
+    db.ts               пул Postgres + query/queryOne
+  core/
+    resources.ts        список ресурсов: путь → таблица
+    repository.ts       весь CRUD (один класс на все ресурсы)
+    resourceRouter.ts   роуты, разбор _sort/_order/_limit и фильтров
+    error.ts            404 и центральный обработчик ошибок
+    AppError.ts         ошибка с HTTP-кодом
+    asyncHandler.ts     проброс ошибок из async-роутов
+  db/
+    schema.sql          таблицы и индексы
+    migrate.ts          применяет schema.sql (npm run migrate)
+    ensureSchema.ts     то же самое, но автоматически при каждом старте
+    seed.ts             тестовые данные
+  docs/
+    openapi.ts          OpenAPI 3 спека для Swagger UI
+  app.ts                сборка Express-приложения
+  server.ts             запуск и graceful shutdown
 ```
 
-Each module is layered: **routes → controller → service → db**. Routes wire up
-middleware, controllers handle HTTP, services hold the SQL and business logic.
+Все шесть ресурсов обслуживает один `Repository` и один `createResourceRouter` —
+чтобы добавить седьмой ресурс, достаточно строки в `src/core/resources.ts`
+и таблицы в `schema.sql`.
 
 ---
 
-## Local setup
+## Известное ограничение: пароли
 
-**Requirements:** Node.js 18+ and a PostgreSQL database.
+Пароли хранятся и отдаются **в открытом виде**. Это не выбор бэкенда, а требование
+текущего фронтенда: `context/UserContext.jsx` сравнивает пароль на клиенте —
 
-1. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-2. **Create your `.env`** (copy the example and fill it in)
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Generate JWT secrets** and paste them into `.env`:
-
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-   ```
-
-   Run it twice — once for `ACCESS_TOKEN_SECRET`, once for `REFRESH_TOKEN_SECRET`.
-
-4. **Set `DATABASE_URL`** in `.env` to your Postgres connection string. To create a
-   local database:
-
-   ```bash
-   createdb debt_tracker
-   ```
-
-5. **Run the migration** (creates all tables — safe to run repeatedly):
-
-   ```bash
-   npm run migrate
-   ```
-
-6. **Start the dev server** (auto-reloads on changes):
-
-   ```bash
-   npm run dev
-   ```
-
-   Visit `http://localhost:4000/health` — you should get `{ "status": "ok" }`.
-
-There's an `api.http` file with ready-made sample requests (use the VS Code
-**REST Client** extension), so you can demo every endpoint quickly.
-
-### Environment variables
-
-| Variable               | Required | Default       | Notes                                            |
-| ---------------------- | -------- | ------------- | ------------------------------------------------ |
-| `DATABASE_URL`         | yes      | —             | Postgres connection string                       |
-| `ACCESS_TOKEN_SECRET`  | yes      | —             | Long random string                               |
-| `REFRESH_TOKEN_SECRET` | yes      | —             | Long random string (different from access)       |
-| `PORT`                 | no       | `4000`        | Server port                                      |
-| `NODE_ENV`             | no       | `development` | `production` hides error details                 |
-| `PGSSL`                | no       | `false`       | Set `true` on managed Postgres that needs SSL    |
-| `ACCESS_TOKEN_TTL`     | no       | `15m`         | e.g. `15m`, `1h`                                 |
-| `REFRESH_TOKEN_TTL`    | no       | `7d`          | e.g. `7d`, `30d`                                 |
-| `CORS_ORIGIN`          | no       | `*`           | `*` or comma-separated origins                   |
-
-### Scripts
-
-| Command               | What it does                                  |
-| --------------------- | --------------------------------------------- |
-| `npm run dev`         | Start with hot reload (tsx)                   |
-| `npm run migrate`     | Apply `schema.sql` to the database            |
-| `npm run build`       | Compile TypeScript to `dist/`                 |
-| `npm start`           | Run the compiled server (`dist/server.js`)    |
-| `npm run migrate:prod`| Run migration from compiled output            |
-
----
-
-## API reference
-
-Interactive Swagger UI is available at **`http://localhost:4000/docs`** (raw OpenAPI 3.0 spec at `/docs.json`). Use the **Authorize** button to paste an `accessToken` and try authenticated routes directly from the browser.
-
-Base path: `/api`. All routes except `/health` and `/api/auth/*` require a header:
-
-```
-Authorization: Bearer <accessToken>
+```js
+const candidates = await usersApi.findAllByPhone(phone);
+const found = candidates.find((u) => u.password === password);
 ```
 
-### Auth
+То есть `GET /users` обязан вернуть поле `password`, иначе вход не работает.
+Значит, **любой человек может открыть `http://localhost:8000/users` и увидеть все
+пароли**. Для учебного проекта это терпимо, для публичного сайта — нет.
 
-| Method | Path                 | Body                          | Notes                          |
-| ------ | -------------------- | ----------------------------- | ------------------------------ |
-| POST   | `/api/auth/register` | `name, email, password`       | Returns `user` + tokens        |
-| POST   | `/api/auth/login`    | `email, password`             | Returns `user` + tokens        |
-| POST   | `/api/auth/refresh`  | `refreshToken`                | Rotates: old token is revoked  |
-| POST   | `/api/auth/logout`   | `refreshToken`                | Revokes the refresh token      |
+Чтобы починить, нужны правки и на бэкенде, и на фронтенде:
 
-### Users
+1. Бэкенд: `POST /auth/register` и `POST /auth/login`, хеширование (`bcryptjs`),
+   выдача JWT; убрать `password` из ответов `/users`.
+2. Фронтенд: `UserContext.jsx` вызывает эти два эндпоинта вместо сравнения
+   пароля в браузере; токен кладётся в `sessionStorage` и уходит в заголовке
+   `Authorization`.
 
-| Method | Path            | Body   | Notes               |
-| ------ | --------------- | ------ | ------------------- |
-| GET    | `/api/users/me` | —      | Current user        |
-| PATCH  | `/api/users/me` | `name` | Update display name |
-
-### Folders
-
-| Method | Path               | Body            |
-| ------ | ------------------ | --------------- |
-| GET    | `/api/folders`     | —               |
-| POST   | `/api/folders`     | `name, color?`  |
-| GET    | `/api/folders/:id` | —               |
-| PATCH  | `/api/folders/:id` | `name?, color?` |
-| DELETE | `/api/folders/:id` | —               |
-
-### Contacts
-
-| Method | Path                | Body                                       |
-| ------ | ------------------- | ------------------------------------------ |
-| GET    | `/api/contacts`     | — (optional query `?folder_id=`)           |
-| POST   | `/api/contacts`     | `name, phone?, email?, note?, folder_id?`  |
-| GET    | `/api/contacts/:id` | —                                          |
-| PATCH  | `/api/contacts/:id` | any of the above fields                    |
-| DELETE | `/api/contacts/:id` | —                                          |
-
-### Debts
-
-| Method | Path                       | Body                                                                          |
-| ------ | -------------------------- | ---------------------------------------------------------------------------- |
-| GET    | `/api/debts`               | — (filters: `?status=&contact_id=&direction=`)                               |
-| POST   | `/api/debts`               | `contact_id, direction, amount, currency?, description?, due_date?`          |
-| GET    | `/api/debts/:id`           | —                                                                            |
-| PATCH  | `/api/debts/:id`           | any debt field + `status`                                                    |
-| DELETE | `/api/debts/:id`           | —                                                                            |
-| GET    | `/api/debts/:id/payments`  | —                                                                            |
-| POST   | `/api/debts/:id/payments`  | `amount, note?, paid_at?` → adds payment and recomputes debt status          |
-
-- `direction` is `they_owe_me` or `i_owe_them`
-- `status` is `pending`, `partial`, or `paid` (auto-managed by payments)
-- `due_date` is `YYYY-MM-DD`
-
-### Dashboard
-
-| Method | Path                     | Returns                                                            |
-| ------ | ------------------------ | ----------------------------------------------------------------- |
-| GET    | `/api/dashboard/summary` | totals, outstanding (incl. `net_balance`), status counts, upcoming |
-
-Every resource is scoped to the authenticated user — you can only read or modify
-your own data.
-
----
-
-## Deployment
-
-The database schema is idempotent (`CREATE TABLE IF NOT EXISTS ...`), so running
-the migration on every deploy is safe.
-
-### Render (one-click via Blueprint)
-
-This repo includes `render.yaml`. In the Render dashboard choose
-**New + → Blueprint** and select the repo. It will:
-
-- create a free PostgreSQL database,
-- create the web service,
-- generate `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` automatically,
-- wire `DATABASE_URL` from the database,
-- build with `npm install && npm run build`,
-- start with `npm run migrate:prod && npm start`.
-
-### Railway
-
-1. Create a new project → **Provision PostgreSQL**.
-2. **Deploy from GitHub repo** (Railway auto-detects Node).
-3. In the service **Variables**, add: `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`,
-   `NODE_ENV=production`, `PGSSL=true`. Railway provides `DATABASE_URL` automatically
-   when you link the Postgres plugin (reference it as `${{Postgres.DATABASE_URL}}`).
-4. Set commands (Settings → Deploy):
-   - **Build:** `npm install && npm run build`
-   - **Start:** `npm run migrate:prod && npm start`
-
----
-
-## Notes
-
-- **Currency:** defaults to `USD`. To change the default (e.g. to `TJS`), edit the
-  `DEFAULT 'USD'` in `src/db/schema.sql` and the `.default('USD')` in
-  `src/modules/debts/debts.schema.ts`. Each debt can still set its own currency.
-- **Money precision:** `NUMERIC` values are parsed into JS numbers for convenience
-  (see `src/config/db.ts`). That's fine for an app like this; for banking-grade
-  precision you'd keep them as strings and use a decimal library.
-- **Refresh tokens** are stored as rows (one per token) so they can be rotated and
-  revoked. Logging out or refreshing revokes the old token.
+Сейчас этого нет намеренно — иначе фронтенд перестал бы работать без переделки.

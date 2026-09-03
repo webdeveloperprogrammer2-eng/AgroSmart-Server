@@ -1,44 +1,40 @@
 {
-  "name": "debt-tracker-api",
+  "name": "agrosmart-api",
   "version": "1.0.0",
-  "description": "Debt Tracker backend API (Node.js + TypeScript + PostgreSQL)",
+  "description": "AgroSmart.tj backend API (Node.js + TypeScript + PostgreSQL), json-server compatible",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc && node scripts/copy-schema.js",
     "start": "node dist/server.js",
     "migrate": "tsx src/db/migrate.ts",
-    "migrate:prod": "node dist/db/migrate.js"
+    "migrate:prod": "node dist/db/migrate.js",
+    "seed": "tsx src/db/seed.ts"
   },
   "keywords": [
-    "debt",
-    "tracker",
+    "agrosmart",
     "express",
     "postgres",
     "typescript"
   ],
   "license": "MIT",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "pg": "^8.12.0",
     "swagger-ui-express": "^5.0.1",
-    "zod": "^3.23.8"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.6",
     "@types/swagger-ui-express": "^4.1.8",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0"
   },
