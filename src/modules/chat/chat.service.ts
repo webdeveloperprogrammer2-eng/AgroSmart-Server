@@ -263,6 +263,16 @@ function buildMessageData(input: SendInput, kind: MessageKind): Record<string, u
 
 /** Паёмро сабт мекунад ва вақти сӯҳбатро нав мекунад (барои тартиби рӯйхат). */
 export async function sendMessage(input: SendInput): Promise<Message> {
+  // Бани маъмур бояд воқеан кор кунад — вагарна он танҳо як байрақ дар база
+  // мебуд ва корбари басташуда паём фиристодан мегирифт.
+  const banned = await queryOne<{ banned: string | null }>(
+    `SELECT data->>'banned' AS banned FROM users WHERE id = $1`,
+    [input.senderId]
+  );
+  if (banned?.banned === 'true') {
+    throw new AppError('Ҳисоби шумо баста аст — паём фиристода наметавонед', 403);
+  }
+
   const kind: MessageKind = input.kind ?? 'text';
   if (!['text', 'voice', 'call'].includes(kind)) {
     throw new AppError('`kind` бояд text, voice ё call бошад', 400);

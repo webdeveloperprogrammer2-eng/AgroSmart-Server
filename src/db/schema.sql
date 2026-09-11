@@ -102,3 +102,21 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages (chat_id, id);
 -- Ҳисоби паёмҳои нахонда
 CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages (chat_id, sender_id) WHERE read_at IS NULL;
+
+-- ══════════════════════════════════════════════════════════════════════════
+-- ИЗБРАННОЕ (маҳсулот / замин / дорувори, ки корбар нигоҳ доштааст)
+-- ══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS favorites (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL,
+  -- кадом бозор: mahsulot | zamin | ZaminApteka
+  item_type   TEXT NOT NULL,
+  -- ID-и худи мол дар ҳамон ҷадвал
+  item_id     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Як мол дубора ба рӯйхат наафтад
+CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_unique
+  ON favorites (user_id, item_type, item_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites (user_id);

@@ -1,3 +1,4 @@
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -8,6 +9,10 @@ import { notFound, errorHandler } from './core/error';
 import swaggerUi from 'swagger-ui-express';
 import { openapiSpec } from './docs/openapi';
 import chatRouter from './modules/chat/chat.router';
+import settingsRouter from './modules/settings/settings.router';
+import favoritesRouter from './modules/favorites/favorites.router';
+import searchRouter from './modules/search/search.router';
+import adminRouter from './modules/admin/admin.router';
 
 export function createApp() {
   const app = express();
@@ -21,6 +26,14 @@ export function createApp() {
   app.use(express.json({ limit: env.JSON_LIMIT }));
 
   if (env.NODE_ENV !== 'test') app.use(morgan('dev'));
+
+  // Саҳифаи зиндаи чат ва занг: /chat-demo
+  // Swagger WebSocket-ро санҷида наметавонад, бинобар ин барои
+  // real-time саҳифаи алоҳида лозим аст.
+  app.use(express.static(path.join(__dirname, '..', 'public')));
+  app.get('/chat-demo', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'chat-demo.html'));
+  });
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
@@ -53,6 +66,14 @@ export function createApp() {
   // Чат — мантиқи худаш дорад (иштирокчиён, дастрасӣ, паёмҳо),
   // бинобар ин ба CRUD-и умумии json-server дохил намешавад.
   app.use('/chats', chatRouter);
+
+  // Танзимоти корбар, молҳои нигоҳдошта ва ҷустуҷӯи умумӣ
+  app.use('/settings', settingsRouter);
+  app.use('/favorites', favoritesRouter);
+  app.use('/search', searchRouter);
+
+  // Панели маъмур — нақш дар сервер тафтиш мешавад
+  app.use('/admin', adminRouter);
 
   app.use(notFound);
   app.use(errorHandler);

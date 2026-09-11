@@ -522,6 +522,180 @@ function buildPaths() {
     },
   };
 
+  // ── Танзимот / Нигоҳдоштаҳо / Ҷустуҷӯ ─────────────────────────────────
+  const uidQuery = {
+    name: 'userId', in: 'query', required: true,
+    schema: { type: 'integer' }, example: 3,
+    description: 'ID-и корбари ҷорӣ (авторизатсия ҳанӯз нест — README)',
+  };
+
+  paths['/settings'] = {
+    get: {
+      tags: ['Settings'],
+      summary: 'Ҳамаи танзимоти корбар',
+      description: 'Маълумоти шахсӣ + афзалиятҳо. Парол дар ҷавоб намеояд.',
+      parameters: [uidQuery],
+      responses: {
+        200: {
+          description: 'Танзимот',
+          content: { 'application/json': { example: {
+            user: { id: 3, userName: 'Ali Karimov', userPhone: '+992900000003',
+                    city: 'Bokhtar', age: 28, role: 'user', avatar: 'data:image/png;base64,...' },
+            preferences: { language: 'tj', theme: 'light', notifications: true },
+          } } },
+        },
+        404: { description: 'Корбар ёфт нашуд' },
+      },
+    },
+  };
+
+  paths['/settings/profile'] = {
+    patch: {
+      tags: ['Settings'],
+      summary: 'Иваз кардани маълумоти шахсӣ',
+      description: 'Танҳо майдонҳои фиристодашуда иваз мешаванд. `avatar` — data-URL, сатри холӣ суратро нест мекунад.',
+      requestBody: { required: true, content: { 'application/json': { example: {
+        userId: 3, userName: 'Ali Karimov', city: 'Khujand', age: 29,
+        avatar: 'data:image/png;base64,iVBORw0KGgo...',
+      } } } },
+      responses: {
+        200: { description: 'Иваз шуд' },
+        400: { description: 'Ном кӯтоҳ, синну сол берун аз 18–120, ё avatar data-URL нест' },
+      },
+    },
+  };
+
+  paths['/settings/phone'] = {
+    patch: {
+      tags: ['Settings'],
+      summary: 'Иваз кардани рақами телефон',
+      description: 'Рақам логин аст, бинобар ин паролро талаб мекунад ва рақами нав набояд банд бошад.',
+      requestBody: { required: true, content: { 'application/json': { example: {
+        userId: 3, userPhone: '+992900000009', password: '1234',
+      } } } },
+      responses: {
+        200: { description: 'Рақам иваз шуд' },
+        401: { description: 'Парол нодуруст' },
+        409: { description: 'Ин рақам аллакай банд аст' },
+      },
+    },
+  };
+
+  paths['/settings/password'] = {
+    patch: {
+      tags: ['Settings'],
+      summary: 'Иваз кардани парол',
+      description: 'Пароли кӯҳна ҳатман тафтиш мешавад.',
+      requestBody: { required: true, content: { 'application/json': { example: {
+        userId: 3, oldPassword: '1234', newPassword: 'nav1234',
+      } } } },
+      responses: {
+        200: { description: 'Парол иваз шуд' },
+        400: { description: 'Пароли нав кӯтоҳ ё ҳамон пароли кӯҳна' },
+        401: { description: 'Пароли кӯҳна нодуруст' },
+      },
+    },
+  };
+
+  paths['/settings/preferences'] = {
+    patch: {
+      tags: ['Settings'],
+      summary: 'Забон, мавзӯъ, хабарномаҳо',
+      description: 'Пештар инҳо танҳо дар localStorage буданд ва дар дастгоҳи дигар гум мешуданд — ҳоло дар сервер мемонанд.',
+      requestBody: { required: true, content: { 'application/json': { example: {
+        userId: 3, language: 'ru', theme: 'dark', notifications: true,
+      } } } },
+      responses: {
+        200: { description: 'Афзалиятҳои нав',
+               content: { 'application/json': { example: { language: 'ru', theme: 'dark', notifications: true } } } },
+        400: { description: '`language` бояд tj|ru|en, `theme` бояд light|dark бошад' },
+      },
+    },
+  };
+
+  paths['/settings/account'] = {
+    delete: {
+      tags: ['Settings'],
+      summary: 'Нест кардани ҳисоб',
+      description: 'Ҳамроҳи корбар молҳо, заминҳо, дорувори, дархостҳо, хабарномаҳо, сӯҳбатҳо ва нигоҳдоштаҳои ӯ нест мешаванд — вагарна дар бозор моли бесоҳиб мемонд.',
+      requestBody: { required: true, content: { 'application/json': { example: { userId: 3, password: '1234' } } } },
+      responses: {
+        200: { description: 'Нест шуд',
+               content: { 'application/json': { example: { message: 'Ҳисоб нест карда шуд',
+                 deleted: { mahsulot: 2, zamin: 1, ZaminApteka: 0, jobs: 1, notifications: 3, chats: 2, favorites: 4 } } } } },
+        401: { description: 'Парол нодуруст' },
+      },
+    },
+  };
+
+  paths['/favorites'] = {
+    get: {
+      tags: ['Favorites'],
+      summary: 'Молҳои нигоҳдошта',
+      description: 'Ҳар сатр ҳамроҳи худи мол (`item`) меояд. Агар мол нест шуда бошад — `item: null`.',
+      parameters: [uidQuery],
+      responses: { 200: { description: 'Рӯйхат',
+        content: { 'application/json': { example: [{ id: 1, itemType: 'mahsulot', itemId: '2',
+          createdAt: '2026-09-02T10:00:00.000Z',
+          item: { id: 2, name: 'Себи Данғара', price: 12, city: 'Dushanbe' } }] } } } },
+    },
+    post: {
+      tags: ['Favorites'],
+      summary: 'Ба нигоҳдоштаҳо илова кардан',
+      description: 'Такрор пахш кардан хато намедиҳад — дубликат сохта намешавад.',
+      requestBody: { required: true, content: { 'application/json': { example: {
+        userId: 3, itemType: 'mahsulot', itemId: '2' } } } },
+      responses: {
+        201: { description: 'Илова шуд' },
+        400: { description: '`itemType` бояд mahsulot | zamin | ZaminApteka бошад' },
+        404: { description: 'Чунин мол ёфт нашуд' },
+      },
+    },
+    delete: {
+      tags: ['Favorites'],
+      summary: 'Хориҷ кардан бо худи мол',
+      description: 'Барои тугмаи "дил" қулай — ID-и сатри favorites донистан лозим нест.',
+      parameters: [
+        uidQuery,
+        { name: 'itemType', in: 'query', required: true, schema: { type: 'string' }, example: 'mahsulot' },
+        { name: 'itemId', in: 'query', required: true, schema: { type: 'string' }, example: '2' },
+      ],
+      responses: { 200: { description: 'Хориҷ шуд' }, 404: { description: 'Ёфт нашуд' } },
+    },
+  };
+
+  paths['/favorites/{id}'] = {
+    delete: {
+      tags: ['Favorites'],
+      summary: 'Хориҷ кардан бо ID-и сатр',
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'integer' } },
+        uidQuery,
+      ],
+      responses: { 200: { description: 'Хориҷ шуд' }, 404: { description: 'Ёфт нашуд' } },
+    },
+  };
+
+  paths['/search'] = {
+    get: {
+      tags: ['Search'],
+      summary: 'Ҷустуҷӯ дар ҳар се бозор якбора',
+      description: '`q` дар ном, тавсиф ва шаҳр ҷустуҷӯ мекунад (ҳарфи калон/хурд фарқ намекунад). Ҳар натиҷа майдони `_type` дорад — аз кадом бозор аст.',
+      parameters: [
+        { name: 'q', in: 'query', required: false, schema: { type: 'string' }, example: 'себ' },
+        { name: 'type', in: 'query', required: false, schema: { type: 'string', enum: ['mahsulot', 'zamin', 'ZaminApteka'] } },
+        { name: 'city', in: 'query', required: false, schema: { type: 'string' }, example: 'Dushanbe' },
+        { name: 'category', in: 'query', required: false, schema: { type: 'string' }, example: 'Meva' },
+        { name: 'minPrice', in: 'query', required: false, schema: { type: 'number' } },
+        { name: 'maxPrice', in: 'query', required: false, schema: { type: 'number' } },
+        { name: '_limit', in: 'query', required: false, schema: { type: 'integer' }, description: 'Пешфарз 30, то 200' },
+      ],
+      responses: { 200: { description: 'Натиҷаҳо',
+        content: { 'application/json': { example: { query: 'себ', count: 1,
+          results: [{ id: 2, name: 'Себи Данғара', price: 12, city: 'Dushanbe', _type: 'mahsulot' }] } } } } },
+    },
+  };
+
   return paths;
 }
 
@@ -551,6 +725,14 @@ export const openapiSpec = {
         'Чат байни харидор ва фурӯшанда — матн, паёми овозӣ ва занги аудио. ' +
         'Ҳама чиз дар вақти воқеӣ тавассути WebSocket: ws://localhost:8000/ws?userId=<id>',
     },
+    {
+      name: 'Settings',
+      description:
+        'Танзимоти корбар — маълумоти шахсӣ, аватар, рақами телефон, парол, '  +
+        'забон/мавзӯъ ва нест кардани ҳисоб.',
+    },
+    { name: 'Favorites', description: 'Молҳои нигоҳдоштаи корбар (маҳсулот, замин, дорувори)' },
+    { name: 'Search', description: 'Ҷустуҷӯи умумӣ дар ҳар се бозор' },
     { name: 'Service', description: 'Санҷиш ва рӯйхати ресурсҳо' },
   ],
   paths: buildPaths(),

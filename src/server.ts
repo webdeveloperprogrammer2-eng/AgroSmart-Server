@@ -58,10 +58,16 @@ async function start() {
       console.log(`   • ${url}/${resource.path}`);
     }
     console.log('');
+    console.log('⚙️  Settings / Favorites / Search:');
+    console.log(`   • ${url}/settings?userId=3`);
+    console.log(`   • ${url}/favorites?userId=3`);
+    console.log(`   • ${url}/search?q=себ`);
+    console.log('');
     console.log('💬 Chat (REST):');
     console.log(`   • ${url}/chats`);
     console.log(`⚡ Realtime: ws://localhost:${env.PORT}/ws?userId=<id>`);
     console.log('   text · voice · audio call (WebRTC signaling)');
+    console.log(`🧪 Live demo (chat + call): ${url}/chat-demo`);
     console.log('');
   });
 
