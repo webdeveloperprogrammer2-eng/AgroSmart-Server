@@ -1,0 +1,33 @@
+# Render Blueprint — AgroSmart API
+# Ин файл Build/Start Command-ро собит мекунад, то хатои
+# "Cannot find module '/opt/render/project/src/dist/server.js'" такрор нашавад.
+services:
+  - type: web
+    name: agrosmart-api
+    runtime: node
+    region: oregon          # ҳамон region-и базаи AgroBack
+    plan: free
+
+    # --include=dev ҳатмист: typescript/@types дар devDependencies-анд,
+    # ва бо NODE_ENV=production npm онҳоро сарфи назар мекунад → tsc ёфт намешавад.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+
+    healthCheckPath: /
+
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: PGSSL
+        value: "true"
+      - key: JSON_LIMIT
+        value: 15mb
+      - key: CORS_ORIGIN
+        value: "*"
+      # Қимматро дар Render Dashboard гузоред (Internal Database URL-и AgroBack).
+      # Ин ҷо НАнависед — парол ба git меравад.
+      - key: DATABASE_URL
+        sync: false
+      # PORT-ро нанависед — Render худаш медиҳад.
