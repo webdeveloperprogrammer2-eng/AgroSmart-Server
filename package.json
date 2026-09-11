@@ -10,7 +10,8 @@
     "migrate": "tsx src/db/migrate.ts",
     "migrate:prod": "node dist/db/migrate.js",
     "seed": "tsx src/db/seed.ts",
-    "prestart": "node scripts/ensure-build.js"
+    "prestart": "node scripts/ensure-build.js",
+    "postinstall": "node scripts/ensure-build.js --soft"
   },
   "keywords": [
     "agrosmart",
@@ -40,6 +41,6 @@
     "typescript": "^5.5.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18 <23"
   }
 }

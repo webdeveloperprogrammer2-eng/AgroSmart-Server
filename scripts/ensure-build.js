@@ -1,45 +1,48 @@
-// Пеш аз `npm start` иҷро мешавад (prestart).
+// Иҷро мешавад ҳамчун `postinstall` (--soft) ва `prestart`.
 //
-// Сабаби хатои Render "Cannot find module '.../dist/server.js'":
-// dist/ дар .gitignore аст, пас Render бояд худаш build кунад. Агар
-// Build Command build-ро иҷро накунад (ё ноком шавад), start меафтад.
-// Ин скрипт чунин ҳолатро пешгирӣ мекунад.
+// Хатои Render: "Cannot find module '/opt/render/project/src/dist/server.js'".
+// Сабаб: dist/ дар .gitignore аст → Render бояд худаш build кунад, вале
+// Build Command танҳо `npm install` буд. Азбаски npm баъди install
+// `postinstall`-ро иҷро мекунад, build маҳз дар ҳамон ҷо ба амал меояд —
+// новобаста аз он ки дар dashboard кадом Build/Start Command навишта шудааст.
+//
+// --soft: агар typescript насб набошад (npm install --omit=dev), хато нанамуда
+//         мегузарад; prestart бори дигар кӯшиш мекунад.
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const soft = process.argv.includes('--soft');
 const root = path.join(__dirname, '..');
 const entry = path.join(root, 'dist', 'server.js');
 
 if (fs.existsSync(entry)) process.exit(0);
 
-console.warn('[prestart] dist/server.js ёфт нашуд — build оғоз мешавад...');
+function fail(reason, recoverable) {
+  const msg = `
+[build] ${soft && recoverable ? '⚠️' : '❌'} build нашуд — ${reason}
 
-function fail(reason) {
-  console.error(`
-[prestart] ❌ BUILD НОКОМ ШУД — ${reason}
-
-Дар Render → Settings → Build Command бояд ин бошад:
-    npm install --include=dev && npm run build
-
-Сабаби маъмул: typescript дар devDependencies аст, вале NODE_ENV=production
-боиси он мешавад, ки npm devDependencies-ро насб накунад → tsc ёфт намешавад.
-`);
+Дар Render → Settings инҳоро гузоред:
+    Build Command:  npm install --include=dev && npm run build
+    Start Command:  npm start
+`;
+  if (soft && recoverable) { console.warn(msg); process.exit(0); }
+  console.error(msg);
   process.exit(1);
 }
 
-// tsc-ро мустақим бо node иҷро мекунем (бе shell — бе огоҳӣ, дар ҳама OS якхела).
 let tsc;
 try {
   tsc = require.resolve('typescript/bin/tsc', { paths: [root] });
 } catch {
-  fail('typescript насб нашудааст');
+  fail('typescript насб нашудааст (devDependencies партофта шуд)', true);
 }
 
+console.log('[build] dist/ нест — компиляция оғоз мешавад...');
 for (const step of [tsc, path.join(__dirname, 'copy-schema.js')]) {
   const r = spawnSync(process.execPath, [step], { stdio: 'inherit', cwd: root });
-  if (r.status !== 0) fail(`қадам ноком шуд: ${path.basename(step)}`);
+  if (r.status !== 0) fail(`қадам ноком шуд: ${path.basename(step)}`, false);
 }
 
-if (!fs.existsSync(entry)) fail('dist/server.js баъд аз build низ нест');
-console.log('[prestart] ✅ build тайёр шуд');
+if (!fs.existsSync(entry)) fail('dist/server.js баъд аз build низ нест', false);
+console.log('[build] ✅ dist/ тайёр аст');
