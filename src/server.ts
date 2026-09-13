@@ -1,9 +1,10 @@
-import { createApp } from './app';
+import { createApp, idleShutdown } from './app';
 import { env } from './config/env';
 import { pool } from './config/db';
 import { ensureSchema } from './db/ensureSchema';
 import { RESOURCES } from './core/resources';
 import { attachWebSocket } from './realtime/socket';
+import { startKeepAlive } from './core/keepAlive';
 
 const app = createApp();
 
@@ -73,6 +74,16 @@ async function start() {
 
   // WebSocket ба ҳамон http-сервер часпонида мешавад — порти алоҳида лозим нест
   attachWebSocket(server);
+
+  // Сервер ТАНҲО баъди бефаъолиятии дароз хомӯш мешавад. То даме ки дархост
+  // меояд, кор мекунад — ҳар дархост таймерро аз сифр оғоз мекунад.
+  idleShutdown.start(server, () => {
+    console.log(`\n💤 ${env.IDLE_SHUTDOWN_HOURS} соат ягон дархост набуд.`);
+    shutdown('IDLE');
+  });
+
+  // Render-и ройгон сервисро баъди 15 дақиқа хоб мекунад — намегузорем
+  startKeepAlive(env.KEEP_ALIVE_URL, env.KEEP_ALIVE_MINUTES);
 
   // Порт банд аст — паёми фаҳмо ба ҷои stack trace-и дароз
   server.on('error', (err: NodeJS.ErrnoException) => {

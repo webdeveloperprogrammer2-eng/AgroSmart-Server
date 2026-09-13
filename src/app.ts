@@ -13,9 +13,19 @@ import settingsRouter from './modules/settings/settings.router';
 import favoritesRouter from './modules/favorites/favorites.router';
 import searchRouter from './modules/search/search.router';
 import adminRouter from './modules/admin/admin.router';
+import { createIdleShutdown } from './core/idleShutdown';
+
+/**
+ * Таймери бефаъолиятӣ. Дар server.ts оғоз мешавад — ин ҷо танҳо сохта
+ * мешавад, то middleware ба ҳар дархост дастрасӣ дошта бошад.
+ */
+export const idleShutdown = createIdleShutdown(env.IDLE_SHUTDOWN_HOURS);
 
 export function createApp() {
   const app = express();
+
+  // Ҳар дархост таймери бефаъолиятиро аз нав оғоз мекунад
+  app.use(idleShutdown.middleware);
 
   app.use(
     cors({ origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',') })

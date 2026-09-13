@@ -24,6 +24,11 @@ services:
         value: "true"
       - key: JSON_LIMIT
         value: 15mb
+      - key: IDLE_SHUTDOWN_HOURS
+        value: "24"
+      # Render-и ройгон баъди 15 дақиқа хоб мекунад — сервер худашро ping мекунад
+      - key: KEEP_ALIVE_MINUTES
+        value: "10"
       - key: CORS_ORIGIN
         value: "*"
       # Қимматро дар Render Dashboard гузоред (Internal Database URL-и AgroBack).
