@@ -15,18 +15,22 @@ export function startKeepAlive(baseUrl: string, minutes: number) {
     return;
   }
 
-  const target = `${baseUrl.replace(/\/+$/, '')}/health`;
+  // Ду дархости GET — танҳо хондан, дар сайт ҳеҷ чиз тағйир намеёбад
+  const base = baseUrl.replace(/\/+$/, '');
+  const targets = [`${base}/health`, `${base}/`];
 
   async function ping() {
-    try {
-      const res = await fetch(target, { signal: AbortSignal.timeout(30_000) });
-      if (!res.ok) console.warn(`💓 Keep-alive: ${target} → ${res.status}`);
-    } catch (err) {
-      console.warn(`💓 Keep-alive: хато — ${(err as Error).message}`);
+    for (const target of targets) {
+      try {
+        const res = await fetch(target, { signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) console.warn(`💓 Keep-alive: ${target} → ${res.status}`);
+      } catch (err) {
+        console.warn(`💓 Keep-alive: ${target} хато — ${(err as Error).message}`);
+      }
     }
   }
 
   const timer = setInterval(ping, minutes * 60 * 1000);
   timer.unref?.();
-  console.log(`💓 Keep-alive: ҳар ${minutes} дақиқа → ${target}`);
+  console.log(`💓 Keep-alive: ҳар ${minutes} дақиқа → ${targets.join(', ')}`);
 }

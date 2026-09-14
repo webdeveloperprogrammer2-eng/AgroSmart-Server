@@ -32,5 +32,5 @@ export const env = {
   // Render-и ройгон баъди 15 дақиқа хоб мекунад — сервер худашро ping мекунад.
   // RENDER_EXTERNAL_URL-ро Render худаш медиҳад; дар localhost холӣ → хомӯш.
   KEEP_ALIVE_URL: process.env.KEEP_ALIVE_URL ?? process.env.RENDER_EXTERNAL_URL ?? '',
-  KEEP_ALIVE_MINUTES: parseFloat(process.env.KEEP_ALIVE_MINUTES ?? '10'),
+  KEEP_ALIVE_MINUTES: parseFloat(process.env.KEEP_ALIVE_MINUTES ?? '3'),
 };
